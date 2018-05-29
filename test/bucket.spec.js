@@ -11,7 +11,7 @@ const fixtures         = require('./fixtures');
 const id = Id.random();
 const bucket = new Bucket();
 const buckets = [];
-let contacts = [];
+const contacts = [];
 
 const socket = createSocket('udp4');
 socket.bind( 9001 );
@@ -19,14 +19,16 @@ socket.bind( 9001 );
 const generateContacts = () => {
   it( 'generates contacts with sockets', () => {
     for ( let i = 0; i < 8; i++ ) {
-      const port = 5000 + i;
-      const contact = new Contact( `127.0.0.1:${port}` );
+      const contact = new Contact({
+        host: 'localhost',
+        port: 5000 + i
+      });
       contact.socket = createSocket('udp4');
       contact.socket.on( 'message', msg => {
         msg = fixtures.parse( msg );
         socket.emit( `${contact.base64}:${msg.tx}` );
       });
-      contact.socket.bind( port );
+      contact.socket.bind( contact.port );
       contacts.push( contact );
     }
   });
@@ -52,31 +54,51 @@ const updateBucket = () => {
 
 const checkStatuses = statuses => {
   it( 'checks statuses', () => {
-    assert.deepStrictEqual( contacts.map( c => c.status ), statuses );
+    assert.deepStrictEqual( bucket.contacts.map( c => c.status ), statuses );
   });
 };
 
 const replaceContact = () => {
-  it( 'replaces contact', () => {
-    const contact = Contact.random();
+  it( 'replaces contact', done => {
+    const contact = new Contact({
+      host: 'localhost',
+      port: 3978
+    });
     const c = bucket.contacts.find( c => c.isBad );
-    assert( bucket.replaceContact( contact ) );
-    assert( !bucket.hasContact( c.id ) );
+    bucket.addContact( contact, id, socket, added => {
+      assert( added );
+      assert( !bucket.hasContact( c.id ) );
+      assert( bucket.hasContact( contact.id ) );
+      done();
+    });
   });
 };
 
-const replaceContactFail = () => {
-  it( 'fails to replace contact', () => {
-    assert( !bucket.replaceContact( Contact.random() ) );
-  });
-};
+// const replaceContactFail = () => {
+//   it( 'fails to replace contact', done => {
+//     const contact = new Contact({
+//       host: 'localhost',
+//       port: 3977
+//     });
+//     bucket.addContact( contact, id, socket, added => {
+//       assert( !added );
+//       done();
+//     });
+//   }).timeout( 5000 );
+// };
 
 const addContacts = () => {
-  it( 'adds contacts to bucket', () => {
+  it( 'adds contacts to bucket', done => {
+    let count = 0;
     contacts.forEach( contact => {
-      bucket.addContact( contact );
+      bucket.addContact( contact, id, socket, added => {
+        assert( added );
+        if ( ++count === contacts.length ) {
+          assert( bucket.full );
+          done();
+        }
+      });
     });
-    assert( bucket.full );
   });
 };
 
@@ -104,13 +126,13 @@ const removeContacts = () => {
   });
 };
 
-const splitBucket = ( contact = null ) => {
+const splitBucket = () => {
   it( 'splits the bucket', () => {
     const maxBefore = bucket.max.clone();
     const midBefore = bucket.min.add( bucket.range.halve() );
     const minBefore = bucket.min.clone();
     const rangeBefore = bucket.range.clone();
-    const otherBucket = bucket.split( contact );
+    const otherBucket = bucket.split();
     buckets.push( otherBucket );
     assert.equal( bucket.compare( otherBucket ), 1 );
     assert( bucket.max.equal( maxBefore ) );
@@ -209,7 +231,7 @@ describe( 'bucket', () => {
   addContacts();
   hasContacts();
   updateBucket();
-  checkStatuses( Array( 8 ).fill('good') );
+  checkStatuses( fixtures.fill( 'good', 8 ) );
   removeContacts();
   doesNotHaveContacts();
   addContacts();
@@ -217,11 +239,17 @@ describe( 'bucket', () => {
   wait();
   stopSocket( 0 );
   updateBucket();
-  checkStatuses([ 'questionable', ...Array( 7 ).fill('good') ]);
+  checkStatuses([
+    'questionable',
+    ...fixtures.fill( 'good', 7 )
+  ]);
   updateBucket();
-  checkStatuses([ 'bad', ...Array( 7 ).fill('good') ]);
+  checkStatuses([
+    'bad',
+    ...fixtures.fill( 'good', 7 )
+  ]);
   replaceContact();
-  replaceContactFail();
+  checkStatuses( fixtures.fill( 'good', 8 ) );
   splitBuckets();
   checkNumContacts();
   checkRange();
