@@ -2,29 +2,20 @@
 
 const assert           = require('assert');
 const { describe, it } = require('mocha');
-const { createSocket } = require('dgram');
 const RoutingTable     = require('../lib/routingtable');
 const Contact          = require('../lib/contact');
-const Id               = require('../lib/id');
 const fixtures         = require('./fixtures');
 
-const socket = createSocket('udp4');
-socket.bind( 2000 );
-
-const id = Id.random();
 const routingTable = new RoutingTable();
-const contacts = fixtures.replicate( ( _, i ) => {
-  const contact = new Contact({
-    host: 'localhost',
-    port: 7000 + i
-  });
-  contact.socket = createSocket('udp4');
-  contact.socket.on( 'message', msg => {
+const server = fixtures.newServer( 2000 );
+
+const servers = fixtures.replicate( ( _, i ) => {
+  const s = fixtures.newServer( 7000 + i );
+  s.on( 'message', msg => {
     msg = fixtures.parse( msg );
-    socket.emit( `${contact.base64}:${msg.tx}` );
+    server.emit( `${s.base64}:${msg.tx}` );
   });
-  contact.socket.bind( contact.port );
-  return contact;
+  return s;
 }, 32 );
 
 const checkNumBuckets = numBuckets => {
@@ -33,12 +24,12 @@ const checkNumBuckets = numBuckets => {
   });
 };
 
-const addAllContacts = () => {
-  it( 'tries to add contacts to routing table', done => {
+const updateAll = () => {
+  it( 'tries to update routing table with all contacts', done => {
     let count = 0;
-    for ( let i = 0; i < contacts.length; i++ ) {
-      routingTable.addContact( contacts[ i ], id, socket, () => {
-        if ( ++count === contacts.length ) {
+    for ( let i = 0; i < servers.length; i++ ) {
+      routingTable.update( servers[ i ].contact, server, () => {
+        if ( ++count === servers.length ) {
           done();
         }
       });
@@ -46,24 +37,24 @@ const addAllContacts = () => {
   });
 };
 
-const addContact = i => {
-  it( 'adds contact to routing table', done => {
-    routingTable.addContact( contacts[ i ], id, socket, added => {
+const update = i => {
+  it( 'updates routing table', done => {
+    routingTable.update( servers[ i ].contact, server, added => {
       assert( added );
       done();
     });
   }).timeout( 5000 );
 };
 
-const addContacts = ( start, end ) => {
+const updates = ( start, end ) => {
   for ( let i = start; i < end; i++ ) {
-    addContact( i );
+    update( i );
   }
 };
 
-const stopContact = i => {
-  it( 'stops contact listening on socket', () => {
-    contacts[ i ].socket.removeAllListeners('message');
+const stopServer = i => {
+  it( 'stops server', () => {
+    servers[ i ].close();
   });
 };
 
@@ -73,7 +64,7 @@ const findContact = () => {
     const bucket = routingTable.buckets[ index ];
     index = Math.floor( Math.random() * bucket.contacts.length );
     const contact = bucket.contacts[ index ];
-    const result = routingTable.findNode( contact.id );
+    const result = routingTable.find( contact.id );
     assert( result.equal( contact ) );
   });
 };
@@ -84,7 +75,7 @@ const findClosest = () => {
       host: 'localhost',
       port: 6999
     });
-    const closest = routingTable.findNode( contact.id );
+    const closest = routingTable.find( contact.id );
     const contacts = routingTable.contacts;
     contacts.sort( ( a, b ) => {
       const diff1 = a.id.difference( contact.id );
@@ -97,14 +88,14 @@ const findClosest = () => {
 
 describe( 'routing table', () => {
   checkNumBuckets( 1 );
-  addContacts( 0, 8 );
-  addContact( 4 );
-  stopContact( 1 );
-  addContact( 8 );
+  updates( 0, 8 );
+  update( 4 );
+  stopServer( 1 );
+  update( 8 );
   checkNumBuckets( 1 );
-  addContact( 9 );
+  update( 9 );
   checkNumBuckets( 2 );
-  addAllContacts();
+  updateAll();
   findContact();
   findClosest();
 });

@@ -2,37 +2,23 @@
 
 const assert           = require('assert');
 const { describe, it } = require('mocha');
-const { createSocket } = require('dgram');
 const Bucket           = require('../lib/bucket');
 const Contact          = require('../lib/contact');
 const Id               = require('../lib/id');
 const fixtures         = require('./fixtures');
 
-const id = Id.random();
 const bucket = new Bucket();
+const server = fixtures.newServer( 9001 );
+
 const buckets = [];
-const contacts = [];
-
-const socket = createSocket('udp4');
-socket.bind( 9001 );
-
-const generateContacts = () => {
-  it( 'generates contacts with sockets', () => {
-    for ( let i = 0; i < 8; i++ ) {
-      const contact = new Contact({
-        host: 'localhost',
-        port: 5000 + i
-      });
-      contact.socket = createSocket('udp4');
-      contact.socket.on( 'message', msg => {
-        msg = fixtures.parse( msg );
-        socket.emit( `${contact.base64}:${msg.tx}` );
-      });
-      contact.socket.bind( contact.port );
-      contacts.push( contact );
-    }
+const servers = fixtures.replicate( ( _, i ) => {
+  const s = fixtures.newServer( 5000 + i );
+  s.on( 'message', msg => {
+    msg = fixtures.parse( msg );
+    server.emit( `${s.base64}:${msg.tx}` );
   });
-};
+  return s;
+}, 8 );
 
 const wait = () => {
   it( 'waits for a bit', done => {
@@ -40,15 +26,15 @@ const wait = () => {
   }).timeout( 4000 );
 };
 
-const stopSocket = index => {
-  it( 'stops listening on socket', () => {
-    contacts[ index ].socket.close();
+const stopServer = index => {
+  it( 'stops server', () => {
+    servers[ index ].close();
   });
 };
 
-const updateBucket = () => {
-  it( 'updates bucket', done => {
-    bucket.update( id, socket, done );
+const refreshBucket = () => {
+  it( 'refreshes bucket', done => {
+    bucket.refresh( server, done );
   }).timeout( 5000 );
 };
 
@@ -58,14 +44,14 @@ const checkStatuses = statuses => {
   });
 };
 
-const replaceContact = () => {
-  it( 'replaces contact', done => {
+const updateBucket = () => {
+  it( 'updates bucket', done => {
     const contact = new Contact({
       host: 'localhost',
       port: 3978
     });
     const c = bucket.contacts.find( c => c.isBad );
-    bucket.addContact( contact, id, socket, added => {
+    bucket.update( contact, server, added => {
       assert( added );
       assert( !bucket.hasContact( c.id ) );
       assert( bucket.hasContact( contact.id ) );
@@ -74,54 +60,34 @@ const replaceContact = () => {
   });
 };
 
-// const replaceContactFail = () => {
-//   it( 'fails to replace contact', done => {
-//     const contact = new Contact({
-//       host: 'localhost',
-//       port: 3977
-//     });
-//     bucket.addContact( contact, id, socket, added => {
-//       assert( !added );
-//       done();
-//     });
-//   }).timeout( 5000 );
-// };
-
 const addContacts = () => {
-  it( 'adds contacts to bucket', done => {
-    let count = 0;
-    contacts.forEach( contact => {
-      bucket.addContact( contact, id, socket, added => {
-        assert( added );
-        if ( ++count === contacts.length ) {
-          assert( bucket.full );
-          done();
-        }
-      });
+  it( 'adds contacts to bucket', () => {
+    servers.forEach( ({ contact }) => {
+      bucket.addContact( contact );
     });
   });
 };
 
 const hasContacts = () => {
   it( 'checks that bucket has contacts', () => {
-    contacts.forEach( contact => {
-      assert( bucket.hasContact( contact.id ) );
+    servers.forEach( ({ id }) => {
+      assert( bucket.hasContact( id ) );
     });
   });
 };
 
 const doesNotHaveContacts = () => {
   it( 'checks that bucket does not have contacts', () => {
-    contacts.forEach( contact => {
-      assert( !bucket.hasContact( contact.id ) );
+    servers.forEach( ({ id }) => {
+      assert( !bucket.hasContact( id ) );
     });
   });
 };
 
 const removeContacts = () => {
   it( 'removes contacts from bucket', () => {
-    contacts.forEach( contact => {
-      bucket.removeContact( contact.id );
+    servers.forEach( ({ id }) => {
+      bucket.removeContact( id );
     });
   });
 };
@@ -225,30 +191,29 @@ const checkRange = () => {
 };
 
 describe( 'bucket', () => {
-  generateContacts();
   doesNotHaveContacts();
-  updateBucket();
+  refreshBucket();
   addContacts();
   hasContacts();
-  updateBucket();
+  refreshBucket();
   checkStatuses( fixtures.fill( 'good', 8 ) );
   removeContacts();
   doesNotHaveContacts();
   addContacts();
   hasContacts();
   wait();
-  stopSocket( 0 );
-  updateBucket();
+  stopServer( 0 );
+  refreshBucket();
   checkStatuses([
     'questionable',
     ...fixtures.fill( 'good', 7 )
   ]);
-  updateBucket();
+  refreshBucket();
   checkStatuses([
     'bad',
     ...fixtures.fill( 'good', 7 )
   ]);
-  replaceContact();
+  updateBucket();
   checkStatuses( fixtures.fill( 'good', 8 ) );
   splitBuckets();
   checkNumContacts();

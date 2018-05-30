@@ -1,8 +1,6 @@
 {
   "name": "mainline",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
   "scripts": {
     "doc": "./node_modules/.bin/jsdoc ./README.md ./lib && open ./out/index.html",
     "test": "nyc mocha --reporter spec"
