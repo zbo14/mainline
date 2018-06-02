@@ -56,6 +56,15 @@ const subtract = () => {
   });
 };
 
+const minMax = () => {
+  it( 'checks min and max', () => {
+    const id1 = Id.random();
+    const id2 = id1.add( Id.random() );
+    assert( Id.min( id1, id2 ).equal( id1 ) );
+    assert( Id.max( id1, id2 ).equal( id2 ) );
+  });
+};
+
 const divideSelf = () => {
   it( 'divides by self', () => {
     const { quotient, remainder } = id.divide( id );
@@ -149,6 +158,7 @@ describe( 'id', () => {
   id = Id.random();
   equal();
   notEqual();
+  minMax();
   add();
   subtract();
   divideSelf();

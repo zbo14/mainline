@@ -1,6 +1,7 @@
 'use strict';
 
 const Contact          = require('../lib/contact');
+const { it }           = require('mocha');
 const { createSocket } = require('dgram');
 
 exports.fill = ( value, length ) => Array( length ).fill( value );
@@ -16,4 +17,10 @@ exports.newServer = port => {
   server.base64 = server.id.base64;
   server.bind( port );
   return server;
+};
+
+exports.wait = howLong => {
+  it( 'waits for a bit', done => {
+    setTimeout( done, howLong );
+  }).timeout( howLong + 50 );
 };

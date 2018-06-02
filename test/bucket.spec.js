@@ -20,12 +20,6 @@ const servers = fixtures.replicate( ( _, i ) => {
   return s;
 }, 8 );
 
-const wait = () => {
-  it( 'waits for a bit', done => {
-    setTimeout( done, 3000 );
-  }).timeout( 4000 );
-};
-
 const stopServer = index => {
   it( 'stops server', () => {
     servers[ index ].close();
@@ -201,7 +195,7 @@ describe( 'bucket', () => {
   doesNotHaveContacts();
   addContacts();
   hasContacts();
-  wait();
+  fixtures.wait( 3000 );
   stopServer( 0 );
   refreshBucket();
   checkStatuses([
