@@ -65,20 +65,20 @@ const ping = ({ server, contact, success = true }) => {
   }).timeout( 3000 );
 };
 
+const pingUpdate = ({ server, contact }) => {
+  it( 'has server ping contact and wait for update', done => {
+    contact = servers[ contact ].contact;
+    server = servers[ server ];
+    server.once( `update:${contact.base64}`, done );
+    server.ping( contact, result => assert( result ) );
+  }).timeout( 3000 );
+};
+
 const findContact = ({ server, target }) => {
-  it( 'finds contact in server\'s routing table', done => {
+  it( 'has server find contact', done => {
     server = servers[ server ];
     target = servers[ target ].id;
-    server.find( target, result =>  {
-      if ( result instanceof Array ) {
-        assert.equal( result.length, 0 );
-        server.contacts.forEach( c => {
-          const diff1 = server.id.difference( target );
-          const diff2 = c.id.difference( target );
-          assert.equal( diff1.compare( diff2 ), -1 );
-        });
-        return done();
-      }
+    server.iterfind( target, result =>  {
       assert( result instanceof Contact );
       assert( result.id.equal( target ) );
       done();
@@ -87,19 +87,11 @@ const findContact = ({ server, target }) => {
 };
 
 const findClosest = ({ server, target }) => {
-  it( 'finds closest in server\'s routing table', done => {
+  it( 'has server find closest contacts', done => {
     server = servers[ server ];
     target = servers[ target ].id;
-    server.find( target, result => {
+    server.iterfind( target, result => {
       assert( result instanceof Array );
-      if ( result.length === 0 ) {
-        server.contacts.forEach( c => {
-          const diff1 = server.id.difference( target );
-          const diff2 = c.id.difference( target );
-          assert.equal( diff1.compare( diff2 ), -1 );
-        });
-        return done();
-      }
       const closest = server.routingTable.contacts;
       closest.sort( ( a, b ) => {
         const diff1 = a.id.difference( target );
@@ -123,13 +115,13 @@ describe( 'server', () => {
     hasContact({ server: i, contact: 0 });
   }
   stopServer( 7 );
-  fixtures.wait( 3000 );
+  fixtures.wait( Contact.idleTimeout );
   ping({ server: 0, contact: 8 });
-  fixtures.wait( 6000 );
+  fixtures.wait( Contact.idleTimeout * 2 );
   hasContact({ server: 0, contact: 8 });
   doesNotHaveContact({ server: 0, contact: 7 });
   checkNumBuckets({ server: 0, numBuckets: 1 });
-  ping({ server: 0, contact: 9 });
+  pingUpdate({ server: 0, contact: 9 });
   checkNumBuckets({ server: 0, numBuckets: 2 });
   findContact({ server: 0, target: 2 });
   findClosest({ server: 1, target: 11 });
@@ -141,4 +133,11 @@ describe( 'server', () => {
   ping({ server: 9, contact: 4, success: false });
   startServer( 4 );
   ping({ server: 3,  contact: 4 });
+  findClosest({ server: 29, target: 30 });
+  doesNotHaveContact({ server: 29, contact: 30 });
+  pingUpdate({ server: 29, contact: 2 });
+  findContact({ server: 29, target: 3 });
+  pingUpdate({ server: 28, contact: 29 });
+  findContact({ server: 28, target: 6 });
+  findClosest({ server: 28, target: 7 });
 });

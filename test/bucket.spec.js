@@ -26,9 +26,9 @@ const stopServer = index => {
   });
 };
 
-const refreshBucket = () => {
-  it( 'refreshes bucket', done => {
-    bucket.refresh( server, done );
+const ping = () => {
+  it( 'pings contacts in bucket', done => {
+    bucket.ping( server, done );
   }).timeout( 5000 );
 };
 
@@ -186,10 +186,10 @@ const checkRange = () => {
 
 describe( 'bucket', () => {
   doesNotHaveContacts();
-  refreshBucket();
+  ping();
   addContacts();
   hasContacts();
-  refreshBucket();
+  ping();
   checkStatuses( fixtures.fill( 'good', 8 ) );
   removeContacts();
   doesNotHaveContacts();
@@ -197,12 +197,12 @@ describe( 'bucket', () => {
   hasContacts();
   fixtures.wait( 3000 );
   stopServer( 0 );
-  refreshBucket();
+  ping();
   checkStatuses([
     'questionable',
     ...fixtures.fill( 'good', 7 )
   ]);
-  refreshBucket();
+  ping();
   checkStatuses([
     'bad',
     ...fixtures.fill( 'good', 7 )

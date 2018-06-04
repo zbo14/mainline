@@ -2,7 +2,6 @@
 
 const assert           = require('assert');
 const { describe, it } = require('mocha');
-const Contact          = require('../lib/contact');
 const Id               = require('../lib/id');
 const fixtures         = require('./fixtures');
 
@@ -10,15 +9,23 @@ const server = fixtures.newServer( 9000 );
 
 const equal = () => {
   it( 'checks that contacts are equal', () => {
-    const contact1 = new Contact({ host: 'localhost', port: 9000 });
-    const contact2 = new Contact('localhost:9000');
+    const contact1 = fixtures.newContact( 9000 );
+    const contact2 = fixtures.newContact( 9000 );
     assert( contact1.equal( contact2 ) );
+  });
+};
+
+const notEqual = () => {
+  it( 'checks that contacts are not equal', () => {
+    const contact1 = fixtures.newContact( 7999 );
+    const contact2 = fixtures.newContact( 8000 );
+    assert( !contact1.equal( contact2 ) );
   });
 };
 
 const compare = () => {
   it( 'compares contacts', () => {
-    const contact = new Contact({ host: 'localhost', port: 9001 });
+    const contact = fixtures.newContact( 9001 );
     const cmp = server.contact.compare( contact );
     assert( cmp, server.id.compare( contact.id ) );
   });
@@ -82,12 +89,12 @@ const findTimeout = () => {
 
 const foundContact = () => {
   it( 'sends found message to contact with target', done => {
-    const contact = new Contact('localhost:9010');
+    const contact = fixtures.newContact( 9010 );
     server.once( 'message', msg => {
       msg = fixtures.parse( msg );
       assert.equal( msg.cmd, 'found' );
       assert.deepStrictEqual( msg.data, {
-        host: 'localhost',
+        host: '127.0.0.1',
         port: 9010
       });
       done();
@@ -100,7 +107,7 @@ const foundClosest = () => {
   it( 'sends found message to contact with closest', done => {
     const closest = [];
     for ( let i = 0; i < 8; i++ ) {
-      closest.push( new Contact( `localhost:${12000 + i}` ) );
+      closest.push( fixtures.newContact( 12000 + i ) );
     }
     server.once( 'message', msg => {
       msg = fixtures.parse( msg );
@@ -115,6 +122,7 @@ const foundClosest = () => {
 
 describe( 'contact', () => {
   equal();
+  notEqual();
   compare();
   ping();
   pong();
